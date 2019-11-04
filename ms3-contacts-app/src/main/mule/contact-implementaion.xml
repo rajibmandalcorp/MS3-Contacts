@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:aggregators="http://www.mulesoft.org/schema/mule/aggregators" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/aggregators http://www.mulesoft.org/schema/mule/aggregators/current/mule-aggregators.xsd">
+	<flow name="contact-implementaion-add-contact-flow" doc:id="eae4d8fd-0614-4485-98bf-211e7b0fd37f" >
+		<set-variable value="#[payload]" doc:name="Store Payload" doc:id="b4fa40c3-5341-46c3-8a38-caa2201485c3" variableName="contact_payload"/>
+		<flow-ref doc:name="Search Contact" doc:id="37858d3f-f59f-4b63-9a59-867b8aa2255a" name="contact-implementaion-contact-search-flow" target="is_contact_exists" targetValue="payload.result"/>
+		<choice doc:name="Preferred Communiction Exists or Not" doc:id="81688379-2afb-4d23-9a13-c06dbdacb9bb" >
+			<when expression="#[vars.is_contact_exists == false]">
+				<flow-ref doc:name="Add Contact" doc:id="1a79c4c8-1d6b-4b71-8cb1-3fe6e12703b1" name="contact-add-contact-flow"/>
+			</when>
+			<otherwise >
+				<raise-error doc:name="Raise error" doc:id="d6f38e63-62c0-4f34-b882-e5f8f6e06cb8" type="CONTACT:INVALID_DATA" description="Contact with Preferred communication is already exists" />
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="d01c96e9-1ec2-4b93-ac25-bb19995ab4aa" />
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="c8441eb8-3de2-4249-93d4-626ee91aca6e" type="CONTACT:INVALID_DATA">
+				<raise-error doc:name="Raise error" doc:id="e3f2a042-2767-43ff-bf55-0cbde81899c6" type="CONTACT:INVALID_DATA"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="07065382-4520-475e-8fc9-26bcf0ab602e" type="CONTACT:INVALID_DATA_PREFFERED">
+				<raise-error doc:name="Raise error" doc:id="3d42bff7-cc95-48b9-bdeb-fa41ec0d5034" type="CONTACT:INVALID_DATA_PREFFERED"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="5be5e6d2-e7b7-434e-8f30-c22e0656d888" type="CONTACT:ERROR_ADD_RECORD">
+				<raise-error doc:name="Raise error" doc:id="2e04e6a4-dcb7-4eb9-8338-618c45bd2a3f" type="CONTACT:ERROR_ADD_RECORD" />
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="contact-add-contact-flow" doc:id="163bebd9-763d-405b-b071-112ca1645d49" >
+		<ee:transform doc:name="GUI ID" doc:id="1d22bdac-046b-42f3-a95d-6f182abbfd2b">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable resource="dwl\contacts\gui_id.dwl" variableName="identification_id" />
+			</ee:variables>
+		</ee:transform>
+		<db:insert doc:name="Insert Contacts" doc:id="174ecf85-6fa2-4d94-a6ee-30e708ccf6cc" config-ref="Database_Config">
+			<db:sql>${IDS_INSERT_CONTACTS_TABLE}</db:sql>
+			<db:input-parameters><![CDATA[#[{
+	'param1' : vars.identification_id,
+	'FirstName': vars.contact_payload.Identification.FirstName,
+	'LastName': vars.contact_payload.Identification.LastName,
+	'DOB' :  vars.contact_payload.Identification.DOB as Date {format: 'MM/dd/yyyy'},
+	'Gender' : vars.contact_payload.Identification.Gender ,
+	'Title':vars.contact_payload.Identification.Title ,
+
+}]]]></db:input-parameters>
+		</db:insert>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="231a0d82-5104-4f18-897b-96f2d005f0a7" maxConcurrency="4">
+			<route >
+				<flow-ref doc:name="Add Addresses" doc:id="b8955464-9f60-4117-9f73-44baebfda288" name="contact-add-addresses"/>
+			</route>
+			<route >
+				<flow-ref doc:name="Add Communication" doc:id="acc0a609-68c2-433e-92df-286299f0befd" name="contact-add-communications"/>
+			</route>
+		</scatter-gather>
+		<logger level="INFO" doc:name="Logger" doc:id="1857307d-7379-4089-9068-7d6ae185dff9" message='p("IDS_ADDED_RECRD_Success")  #[vars.identification_id]' />
+		<ee:transform doc:name="Return ID" doc:id="5b3416a0-c1bc-4c98-8b1d-1504f8e1e6a2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"ID" : vars.identification_id
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="3a58e2b6-3833-4ea6-b572-95467f51d265">
+				<raise-error doc:name="Raise error" doc:id="a8de1746-097b-4894-9b97-f0ebac51d126" type="CONTACT:ERROR_ADD_RECORD"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="contact-add-communications" doc:id="2c2d3312-d979-4d82-acc2-3ab6803b64ae" >
+		<foreach doc:name="For Each" doc:id="6d46d668-a681-4cd6-abba-6c23352a5881" collection="vars.contact_payload.Communication">
+			<db:insert doc:name="Insert Communications" doc:id="2880e52a-4399-4dd8-b9bb-872276f1c4b3" config-ref="Database_Config">
+				<db:sql>${IDS_INSERT_COMMUNICATIONS_TABLE}</db:sql>
+				<db:input-parameters><![CDATA[#[{
+	'param1' : vars.identification_id,
+	'type': payload.'type',
+	'value': payload.value,
+	'preferred' :  if (payload.preferred == null) 0 else ( if (payload.preferred == "true") 1 else 0) ,
+}]]]></db:input-parameters>
+			</db:insert>
+		</foreach>
+	</flow>
+	<flow name="contact-add-addresses" doc:id="e783313e-f2c7-4155-8c78-cbd18b9f3622" >
+		<foreach doc:name="For Each" doc:id="bb356e44-8be5-44c2-8c71-784f7ef8f107" collection="vars.contact_payload.Address">
+			<db:insert doc:name="Insert Addresses" doc:id="544dc3b5-c32e-4e6a-b5ff-0b100e9135b3" config-ref="Database_Config">
+				<db:sql>${IDS_INSERT_ADDRESSES_TABLE}
+</db:sql>
+				<db:input-parameters><![CDATA[#[{
+	'param1' : vars.identification_id,
+	'type': payload.'type ',
+	'number': payload.number,
+	'street' : payload.street ,
+	'Unit': payload.Unit ,
+	'State':payload.State ,
+	'zipcode' :payload.zipcode
+}]]]></db:input-parameters>
+			</db:insert>
+		</foreach>
+	</flow>
+	<flow name="contact-implementaion-contact-search-flow" doc:id="15e39b98-e822-4452-95c9-736117b4b000" >
+		<ee:transform doc:name="Filter Prefrred Value" doc:id="ec52d93f-853d-4bef-9b4a-ef1629915b99" >
+			<ee:message >
+				<ee:set-payload resource="dwl\contacts\filter-preffered-value.dwl" />
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="e778d6ad-2723-45bf-9280-31dc4cb81585" >
+			<when expression="sizeOf(payload) &gt; 0">
+				<db:select doc:id="a1e4fe3b-4a0a-40a4-ac0c-ac09fa44695e" doc:name="Select -Preffered Value" config-ref="Database_Config">
+			<db:sql>Select * from communications where value =:param1 and preferred = true</db:sql>
+			<db:input-parameters><![CDATA[#["param1":payload[0].value]]]></db:input-parameters>
+		</db:select>
+				<ee:transform doc:name="Return True/False" doc:id="6cb07b49-33ce-475b-9a72-ee70c9e1ac88">
+					<ee:message>
+						<ee:set-payload resource="dwl\contacts\return-result.dwl" />
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<raise-error doc:name="Raise error" doc:id="7061350a-20ee-453b-bde2-6c6b1c7fd07a" type="CONTACT:INVALID_DATA_PREFFERED" description="No preferred communication set in communication"/>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="contact-implementaion-get-flow" doc:id="4209543e-03f0-4c41-b5d1-86385c8c4cbb" >
+		<db:select doc:name="Select Informations" doc:id="cb672266-10b1-4fc2-94f7-8d337096e6c2" config-ref="Database_Config">
+			<db:sql >${IDS_SELECT_CONTACTS_TABLE}</db:sql>
+		</db:select>
+		<set-variable value="#[[]]" doc:name="Temp Array " doc:id="cb7fba84-039d-496b-98b8-6b4be4989632" variableName="Temp"/>
+		<foreach doc:name="For Each" doc:id="2b643dc1-2db9-4d72-81d0-cd83399dc48e" collection="#[payload]">
+			<set-variable value="#[payload.identification_id]" doc:name="identification_id" doc:id="277afebf-0d80-46de-a601-79ba31669052" variableName="identification_id" />
+			<ee:transform doc:name="DB To Indentification" doc:id="dc73858b-9dec-41dd-888b-6c90af8dfd0c">
+				<ee:message>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable resource="dwl\contacts\db-identification.dwl" variableName="identification" />
+				</ee:variables>
+			</ee:transform>
+			<scatter-gather doc:name="Scatter-Gather" doc:id="ae950f59-3e2c-444d-9a16-4b21daf2c6af" >
+				<route >
+					<flow-ref doc:name="Get Addresses" doc:id="de0933f0-28a4-4259-9925-aa0bbf16994e" name="contact-get-addresses" target="addresses" targetValue="#[payload]"/>
+				</route>
+				<route >
+					<flow-ref doc:name="Get Communication" doc:id="1b27e09a-99bb-4d01-9ef5-3a288b1c058a" name="contact-get-communication" target="communication" targetValue="#[payload]"/>
+				</route>
+			</scatter-gather>
+			<ee:transform doc:name="Contact" doc:id="8a320836-abc2-487c-99d2-85926b70ea96" >
+				<ee:message >
+					<ee:set-payload resource="dwl\contacts\contact-create.dwl" />
+				</ee:message>
+			</ee:transform>
+			<ee:transform doc:name="Aggregator" doc:id="c12c4dae-3578-4d4a-931d-7714fa45ed16" >
+				<ee:message >
+					<ee:set-payload resource="dwl\contacts\aggregrator.dwl" />
+				</ee:message>
+			</ee:transform>
+			<set-variable value="#[payload]" doc:name="Re Initialize Temp Array" doc:id="935fb897-bc06-4cd0-898e-db94f861529f" variableName="Temp"/>
+		</foreach>
+		<ee:transform doc:name="Return All Contacts" doc:id="e6dd6346-caf7-402d-b9ba-1c32e133af4a" >
+			<ee:message >
+				<ee:set-payload resource="dwl\contacts\return-all-contacts.dwl" />
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="4377d860-9f34-47e4-8f48-0c9ebef3bc5e" >
+				<raise-error doc:name="Raise error" doc:id="5ac6a0f2-8846-4075-a16d-4370bf0d9eb1" type="CONTACT:INVALID_DATA_READ"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="contact-get-communication" doc:id="6769edd2-62e3-42b2-9215-2fa35b75f8aa" >
+		<db:select doc:name="Select Communications" doc:id="87df2aa2-a6f7-4130-9cea-72ed180e6706" config-ref="Database_Config">
+				<db:sql>${IDS_SELECT_COMMUNICATIONS_TABLE}</db:sql>
+				<db:input-parameters><![CDATA[#['param1' : vars.identification_id]]]></db:input-parameters>
+			</db:select>
+		<ee:transform doc:name="DB To Communication" doc:id="b0f5842b-32b1-4e87-b8e9-33121f0ca0f3">
+				<ee:message>
+				<ee:set-payload resource="dwl\contacts\db-communication.dwl" />
+				</ee:message>
+				<ee:variables>
+				</ee:variables>
+			</ee:transform>
+	</flow>
+	<flow name="contact-get-addresses" doc:id="0af8e185-7367-4e46-9bf2-47cbb73000dc" >
+		<db:select doc:name="Select Addresses" doc:id="b0a07b36-c09b-45ab-a3ca-bcf067b5932f" config-ref="Database_Config">
+				<db:sql>${IDS_SELECT_ADDRESSES_TABLE}</db:sql>
+				<db:input-parameters><![CDATA[#['param1' : vars.identification_id]]]></db:input-parameters>
+			</db:select>
+		<ee:transform doc:name="DB To Addresses" doc:id="c3b6b081-be15-40a7-a647-06f74c43ae44">
+				<ee:message>
+				<ee:set-payload resource="dwl\contacts\db-address.dwl" />
+				</ee:message>
+				<ee:variables>
+				</ee:variables>
+			</ee:transform>
+	</flow>	
+	
+	
+</mule>

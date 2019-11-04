@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<configuration-properties doc:name="Configuration properties" doc:id="92d9b9b1-2ac3-4e4e-8296-93062d5bb15d" file="${env}.properties" />
+	<configuration-properties doc:name="Configuration properties" doc:id="84116521-2bf3-4b91-8d44-66a410bae5da" file="const.properties" />
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="8ccf7823-5b2e-4ab7-9137-177742e260b5" >
+		<db:my-sql-connection host="${IDS_MYSQL_SERVER}" port="${IDS_MYSQL_PORT}" user="${IDS_MYSQL_USER}" password="${IDS_MYSQL_PASSWORD}" database="${IDS_MYSQL_DATABASE}" />
+	</db:config>
+	    <http:listener-config name="contact-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="${IDS_LOCA_PORT}" />
+    </http:listener-config>
+	
+</mule>
